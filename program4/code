@@ -1,0 +1,115 @@
+import numpy as np
+import random
+
+# -----------------------------
+# Parameters
+# -----------------------------
+NUM_CITIES = 10
+NUM_ANTS = 20
+ALPHA = 1.0      # pheromone importance
+BETA = 5.0       # distance importance
+RHO = 0.5        # pheromone evaporation rate
+Q = 100          # pheromone deposit factor
+ITERATIONS = 100
+
+# -----------------------------
+# Generate random city coordinates
+# -----------------------------
+cities = np.random.rand(NUM_CITIES, 2) * 100  # random 2D coordinates
+
+# Compute distance matrix
+dist_matrix = np.zeros((NUM_CITIES, NUM_CITIES))
+for i in range(NUM_CITIES):
+    for j in range(NUM_CITIES):
+        if i != j:
+            dist_matrix[i][j] = np.linalg.norm(cities[i] - cities[j])
+        else:
+            dist_matrix[i][j] = np.inf  # prevent self-visits
+
+# -----------------------------
+# ACO Core Functions
+# -----------------------------
+def total_distance(tour):
+    """Compute total distance of a tour."""
+    dist = sum(dist_matrix[tour[i], tour[(i + 1) % NUM_CITIES]] for i in range(NUM_CITIES))
+    return dist
+
+def probability(i, unvisited, pheromone, alpha=ALPHA, beta=BETA):
+    """Compute probability of moving to each next city."""
+    pheromone_i = pheromone[i, unvisited] ** alpha
+    visibility_i = (1.0 / dist_matrix[i, unvisited]) ** beta
+    probs = pheromone_i * visibility_i
+    return probs / probs.sum()
+
+def construct_solution(pheromone):
+    """Build a tour for one ant."""
+    tour = [random.randint(0, NUM_CITIES - 1)]
+    unvisited = list(set(range(NUM_CITIES)) - set(tour))
+    while unvisited:
+        current_city = tour[-1]
+        probs = probability(current_city, unvisited, pheromone)
+        next_city = random.choices(unvisited, weights=probs)[0]
+        tour.append(next_city)
+        unvisited.remove(next_city)
+    return tour
+
+# -----------------------------
+# Ant Colony Optimization
+# -----------------------------
+def ant_colony_optimization():
+    pheromone = np.ones((NUM_CITIES, NUM_CITIES))
+    best_tour = None
+    best_distance = float('inf')
+
+    for iteration in range(ITERATIONS):
+        all_tours = []
+        all_distances = []
+
+        for ant in range(NUM_ANTS):
+            tour = construct_solution(pheromone)
+            dist = total_distance(tour)
+            all_tours.append(tour)
+            all_distances.append(dist)
+
+            # Update best
+            if dist < best_distance:
+                best_distance = dist
+                best_tour = tour
+
+        # Pheromone evaporation
+        pheromone *= (1 - RHO)
+
+        # Pheromone update
+        for tour, dist in zip(all_tours, all_distances):
+            for i in range(NUM_CITIES):
+                a, b = tour[i], tour[(i + 1) % NUM_CITIES]
+                pheromone[a][b] += Q / dist
+                pheromone[b][a] += Q / dist  # symmetric
+
+        if iteration % 10 == 0:
+            print(f"Iteration {iteration}: Best Distance = {best_distance:.2f}")
+
+    return best_tour, best_distance, pheromone
+
+# -----------------------------
+# Run Algorithm
+# -----------------------------
+best_tour, best_dist, pheromone = ant_colony_optimization()
+print("\nBest Tour Found:", best_tour)
+print("Shortest Distance:", best_dist)
+
+# -----------------------------
+# Visualization (optional)
+# -----------------------------
+try:
+    import matplotlib.pyplot as plt
+
+    tour_cities = np.array([cities[i] for i in best_tour + [best_tour[0]]])
+    plt.figure(figsize=(6, 6))
+    plt.plot(tour_cities[:, 0], tour_cities[:, 1], 'o-', color='blue')
+    for i, (x, y) in enumerate(cities):
+        plt.text(x + 1, y + 1, str(i), fontsize=12)
+    plt.title(f"Best TSP Route (Distance = {best_dist:.2f})")
+    plt.show()
+except ImportError:
+    pass
