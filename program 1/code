@@ -1,0 +1,96 @@
+import random
+import numpy as np
+
+# -----------------------------
+# Parameters
+# -----------------------------
+NUM_JOBS = 10
+NUM_MACHINES = 3
+POP_SIZE = 30
+NUM_GENERATIONS = 100
+MUTATION_RATE = 0.1
+TOURNAMENT_SIZE = 3
+
+# -----------------------------
+# Generate random job times
+# -----------------------------
+job_times = [random.randint(1, 20) for _ in range(NUM_JOBS)]
+
+# -----------------------------
+# Helper: Evaluate a chromosome
+# -----------------------------
+def evaluate(chromosome):
+    """Compute makespan for a given job-to-machine assignment."""
+    machine_loads = [0] * NUM_MACHINES
+    for job, machine in enumerate(chromosome):
+        machine_loads[machine] += job_times[job]
+    return max(machine_loads)
+
+# -----------------------------
+# Initialize population
+# -----------------------------
+def initialize_population():
+    return [
+        [random.randint(0, NUM_MACHINES - 1) for _ in range(NUM_JOBS)]
+        for _ in range(POP_SIZE)
+    ]
+
+# -----------------------------
+# Selection: Tournament
+# -----------------------------
+def tournament_selection(population):
+    tournament = random.sample(population, TOURNAMENT_SIZE)
+    tournament.sort(key=evaluate)
+    return tournament[0]
+
+# -----------------------------
+# Crossover: Single Point
+# -----------------------------
+def crossover(parent1, parent2):
+    point = random.randint(1, NUM_JOBS - 2)
+    child = parent1[:point] + parent2[point:]
+    return child
+
+# -----------------------------
+# Mutation: Random machine reassignment
+# -----------------------------
+def mutate(chromosome):
+    for i in range(NUM_JOBS):
+        if random.random() < MUTATION_RATE:
+            chromosome[i] = random.randint(0, NUM_MACHINES - 1)
+    return chromosome
+
+# -----------------------------
+# Main Genetic Algorithm
+# -----------------------------
+def genetic_algorithm():
+    population = initialize_population()
+    best_solution = min(population, key=evaluate)
+
+    for gen in range(NUM_GENERATIONS):
+        new_population = []
+        for _ in range(POP_SIZE):
+            parent1 = tournament_selection(population)
+            parent2 = tournament_selection(population)
+            child = crossover(parent1, parent2)
+            child = mutate(child)
+            new_population.append(child)
+
+        population = new_population
+        current_best = min(population, key=evaluate)
+
+        if evaluate(current_best) < evaluate(best_solution):
+            best_solution = current_best
+
+        if gen % 10 == 0:
+            print(f"Generation {gen}: Best makespan = {evaluate(best_solution)}")
+
+    return best_solution
+
+# -----------------------------
+# Run Algorithm
+# -----------------------------
+best = genetic_algorithm()
+print("\nBest job assignment:", best)
+print("Job times:", job_times)
+print("Best makespan:", evaluate(best))
