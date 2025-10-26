@@ -1,0 +1,70 @@
+import numpy as np
+
+# Problem definition
+num_tasks = 10           # Number of tasks
+num_processors = 3       # Number of processors
+task_times = np.random.randint(1, 20, num_tasks)  # Random execution times for tasks
+
+# Grey Wolf Optimization parameters
+num_wolves = 5           # Population size
+max_iter = 50            # Maximum iterations
+a_decrease = 2           # Parameter 'a' decrease
+
+# Helper function to calculate fitness (makespan)
+def fitness(solution):
+    processor_times = np.zeros(num_processors)
+    for i in range(len(solution)):
+        processor_times[solution[i]] += task_times[i]
+    return max(processor_times)  # Makespan
+
+# Initialize population (wolves)
+population = np.random.randint(0, num_processors, (num_wolves, num_tasks))
+fitness_values = np.array([fitness(w) for w in population])
+
+# Identify alpha, beta, delta wolves
+sorted_idx = np.argsort(fitness_values)
+alpha, beta, delta = population[sorted_idx[0]], population[sorted_idx[1]], population[sorted_idx[2]]
+
+# GWO main loop
+for t in range(max_iter):
+    a = a_decrease - t * (a_decrease / max_iter)  # Linearly decreasing 'a'
+
+    for i in range(num_wolves):
+        wolf = population[i].copy()
+        for j in range(num_tasks):
+            r1 = np.random.random()
+            r2 = np.random.random()
+            
+            A1 = 2 * a * r1 - a
+            C1 = 2 * r2
+            D_alpha = abs(C1 * alpha[j] - wolf[j])
+            X1 = alpha[j] - A1 * D_alpha
+            
+            r1 = np.random.random()
+            r2 = np.random.random()
+            A2 = 2 * a * r1 - a
+            C2 = 2 * r2
+            D_beta = abs(C2 * beta[j] - wolf[j])
+            X2 = beta[j] - A2 * D_beta
+            
+            r1 = np.random.random()
+            r2 = np.random.random()
+            A3 = 2 * a * r1 - a
+            C3 = 2 * r2
+            D_delta = abs(C3 * delta[j] - wolf[j])
+            X3 = delta[j] - A3 * D_delta
+            
+            # Update wolf's position
+            wolf[j] = np.round((X1 + X2 + X3) / 3) % num_processors
+        
+        population[i] = wolf
+        fitness_values[i] = fitness(wolf)
+
+    # Update alpha, beta, delta
+    sorted_idx = np.argsort(fitness_values)
+    alpha, beta, delta = population[sorted_idx[0]], population[sorted_idx[1]], population[sorted_idx[2]]
+
+# Output results
+print("Task times:", task_times)
+print("Best task assignment (processor indices):", alpha)
+print("Minimum makespan:", fitness(alpha))
