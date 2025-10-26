@@ -1,0 +1,107 @@
+import random
+import math
+
+# -----------------------------
+# Problem setup
+# -----------------------------
+NUM_CITIES = 8
+POP_SIZE = 40
+GENERATIONS = 100
+MUTATION_RATE = 0.1
+HEAD_LENGTH = 10  # GEP head length (controls expression size)
+
+# Random city coordinates
+cities = [(random.random() * 100, random.random() * 100) for _ in range(NUM_CITIES)]
+
+def distance(a, b):
+    return math.hypot(a[0] - b[0], a[1] - b[1])
+
+# -----------------------------
+# GEP chromosome representation
+# -----------------------------
+# Each chromosome is a symbolic "expression" used to generate a tour.
+# We interpret the expression by sorting cities according to its generated key.
+
+def random_chromosome():
+    """Generate random GEP chromosome: numbers and operators."""
+    symbols = [str(i) for i in range(NUM_CITIES)] + ['+', '-', '*', '/']
+    return ''.join(random.choice(symbols) for _ in range(HEAD_LENGTH))
+
+# -----------------------------
+# Expression evaluation
+# -----------------------------
+def evaluate_expression(expr, city_idx):
+    """Generate a numeric key for each city given expression and index."""
+    # Replace city index in expression and safely evaluate
+    expr_safe = expr.replace('/', '//')
+    expr_eval = expr_safe.replace(str(city_idx), str(city_idx))
+    try:
+        return eval(expr_eval)
+    except Exception:
+        return random.random()
+
+def decode_tour(expr):
+    """Generate a city visit order from the expression."""
+    scores = [(evaluate_expression(expr, i), i) for i in range(NUM_CITIES)]
+    sorted_cities = [i for _, i in sorted(scores)]
+    return sorted_cities
+
+# -----------------------------
+# Fitness evaluation (total path length)
+# -----------------------------
+def tour_length(tour):
+    dist = sum(distance(cities[tour[i]], cities[tour[(i + 1) % NUM_CITIES]]) for i in range(NUM_CITIES))
+    return dist
+
+def fitness(expr):
+    tour = decode_tour(expr)
+    return tour_length(tour)
+
+# -----------------------------
+# Genetic Operators
+# -----------------------------
+def mutate(expr):
+    expr_list = list(expr)
+    symbols = [str(i) for i in range(NUM_CITIES)] + ['+', '-', '*', '/']
+    for i in range(len(expr_list)):
+        if random.random() < MUTATION_RATE:
+            expr_list[i] = random.choice(symbols)
+    return ''.join(expr_list)
+
+def crossover(parent1, parent2):
+    point = random.randint(1, len(parent1) - 1)
+    return parent1[:point] + parent2[point:]
+
+# -----------------------------
+# Main Gene Expression Algorithm
+# -----------------------------
+def gene_expression_tsp():
+    population = [random_chromosome() for _ in range(POP_SIZE)]
+    best_expr = min(population, key=fitness)
+
+    for gen in range(GENERATIONS):
+        new_pop = []
+        for _ in range(POP_SIZE):
+            p1, p2 = random.sample(population, 2)
+            child = crossover(p1, p2)
+            child = mutate(child)
+            new_pop.append(child)
+
+        population = new_pop
+        current_best = min(population, key=fitness)
+        if fitness(current_best) < fitness(best_expr):
+            best_expr = current_best
+
+        if gen % 10 == 0:
+            print(f"Gen {gen}: Best distance = {fitness(best_expr):.2f}")
+
+    return best_expr
+
+# -----------------------------
+# Run algorithm
+# -----------------------------
+best_expr = gene_expression_tsp()
+best_tour = decode_tour(best_expr)
+print("\nBest Expression:", best_expr)
+print("Best Tour:", best_tour)
+print("Total Distance:", fitness(best_expr))
