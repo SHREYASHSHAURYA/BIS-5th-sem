@@ -1,0 +1,97 @@
+import numpy as np
+import random
+
+# -----------------------------
+# Problem Setup
+# -----------------------------
+NUM_ITEMS = 20
+MAX_WEIGHT = 50
+
+# Random item weights and values
+np.random.seed(42)
+weights = np.random.randint(1, 15, size=NUM_ITEMS)
+values = np.random.randint(10, 100, size=NUM_ITEMS)
+
+# -----------------------------
+# Parameters
+# -----------------------------
+NUM_NESTS = 25
+MAX_ITER = 100
+PA = 0.25     # discovery rate (probability of abandoning)
+ALPHA = 1.0   # step size for Levy flight
+
+# -----------------------------
+# Helper Functions
+# -----------------------------
+def fitness(solution):
+    """Fitness = total value if under capacity, else penalized."""
+    total_weight = np.dot(solution, weights)
+    total_value = np.dot(solution, values)
+    if total_weight > MAX_WEIGHT:
+        return total_value - 10 * (total_weight - MAX_WEIGHT)
+    return total_value
+
+def levy_flight(Lambda=1.5):
+    """Generate step size using Levy distribution."""
+    sigma = (np.math.gamma(1 + Lambda) * np.sin(np.pi * Lambda / 2) /
+             (np.math.gamma((1 + Lambda) / 2) * Lambda * 2 ** ((Lambda - 1) / 2))) ** (1 / Lambda)
+    u = np.random.normal(0, sigma)
+    v = np.random.normal(0, 1)
+    step = u / abs(v) ** (1 / Lambda)
+    return step
+
+def generate_solution():
+    """Random binary vector."""
+    return np.random.randint(0, 2, size=NUM_ITEMS)
+
+def binarize(sol):
+    """Ensure binary 0/1 solution."""
+    return np.clip(np.round(sol), 0, 1).astype(int)
+
+# -----------------------------
+# Cuckoo Search Algorithm
+# -----------------------------
+def cuckoo_search():
+    nests = [generate_solution() for _ in range(NUM_NESTS)]
+    fitness_values = [fitness(n) for n in nests]
+    best_nest = nests[np.argmax(fitness_values)]
+    best_fitness = max(fitness_values)
+
+    for iteration in range(MAX_ITER):
+        # Generate a new cuckoo via Levy flight
+        for i in range(NUM_NESTS):
+            step = levy_flight() * ALPHA
+            new_sol = nests[i] + step * (np.random.rand(NUM_ITEMS) - 0.5)
+            new_sol = binarize(new_sol)
+            new_fit = fitness(new_sol)
+            if new_fit > fitness_values[i]:
+                nests[i] = new_sol
+                fitness_values[i] = new_fit
+
+        # Abandon a fraction of nests
+        for i in range(NUM_NESTS):
+            if random.random() < PA:
+                nests[i] = generate_solution()
+                fitness_values[i] = fitness(nests[i])
+
+        # Update best
+        current_best_idx = np.argmax(fitness_values)
+        if fitness_values[current_best_idx] > best_fitness:
+            best_fitness = fitness_values[current_best_idx]
+            best_nest = nests[current_best_idx]
+
+        if iteration % 10 == 0:
+            print(f"Iteration {iteration}: Best Fitness = {best_fitness:.2f}")
+
+    return best_nest, best_fitness
+
+# -----------------------------
+# Run Optimization
+# -----------------------------
+best_sol, best_val = cuckoo_search()
+
+print("\n=== Best Solution Found ===")
+print("Selected items:", best_sol)
+print("Total Value:", np.dot(best_sol, values))
+print("Total Weight:", np.dot(best_sol, weights))
+print("Knapsack Capacity:", MAX_WEIGHT)
