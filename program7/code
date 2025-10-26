@@ -1,0 +1,96 @@
+import numpy as np
+
+# -----------------------------
+# Problem Setup
+# -----------------------------
+adj_matrix = np.array([
+    [0, 2, 4, 0, 0],
+    [2, 0, 1, 7, 0],
+    [4, 1, 0, 3, 5],
+    [0, 7, 3, 0, 1],
+    [0, 0, 5, 1, 0]
+])
+
+num_nodes = adj_matrix.shape[0]
+source = 0
+destination = 4
+
+# -----------------------------
+# PCA Parameters
+# -----------------------------
+population_size = 10
+num_iterations = 50
+mutation_rate = 0.2
+
+# -----------------------------
+# Helper Functions
+# -----------------------------
+def generate_path():
+    path = [source]
+    while path[-1] != destination:
+        neighbors = [i for i, w in enumerate(adj_matrix[path[-1]]) if w > 0 and i not in path]
+        if not neighbors:
+            path = [source]
+            continue
+        path.append(int(np.random.choice(neighbors)))  # Convert to Python int
+    return path
+
+def fitness(path):
+    cost = 0
+    for i in range(len(path)-1):
+        cost += adj_matrix[path[i], path[i+1]]
+    return cost
+
+def mutate(path):
+    if len(path) > 3 and np.random.rand() < mutation_rate:
+        i, j = np.random.choice(range(1, len(path)-1), 2, replace=False)
+        path[i], path[j] = path[j], path[i]
+    return path
+
+def crossover(path1, path2):
+    common_nodes = set(path1[1:-1]) & set(path2[1:-1])
+    if not common_nodes:
+        return path1.copy()
+    cut_node = int(np.random.choice(list(common_nodes)))  # Convert to Python int
+    i = path1.index(cut_node)
+    j = path2.index(cut_node)
+    new_path = path1[:i] + path2[j:]
+    return new_path
+
+# -----------------------------
+# Initialize Population
+# -----------------------------
+population = [generate_path() for _ in range(population_size)]
+fitness_values = np.array([fitness(p) for p in population])
+
+# -----------------------------
+# PCA Loop
+# -----------------------------
+for _ in range(num_iterations):
+    new_population = []
+    for idx in range(population_size):
+        left = population[(idx-1) % population_size]
+        right = population[(idx+1) % population_size]
+        current = population[idx]
+        
+        neighbors = [left, current, right]
+        neighbors_fitness = [fitness(p) for p in neighbors]
+        best_neighbor = neighbors[np.argmin(neighbors_fitness)]
+        
+        offspring = crossover(current, best_neighbor)
+        offspring = mutate(offspring)
+        
+        new_population.append(offspring)
+    
+    population = new_population
+    fitness_values = np.array([fitness(p) for p in population])
+
+# -----------------------------
+# Results
+# -----------------------------
+best_idx = np.argmin(fitness_values)
+best_path = population[best_idx]
+best_cost = fitness_values[best_idx]
+
+print("Best path:", best_path)
+print("Path cost:", best_cost)
