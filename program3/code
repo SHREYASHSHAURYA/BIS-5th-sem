@@ -1,0 +1,105 @@
+import numpy as np
+import random
+import math
+
+# -----------------------------
+# Solar geometry helpers
+# -----------------------------
+def solar_declination(day):
+    """Solar declination angle (radians)"""
+    return 23.45 * math.pi / 180 * math.sin(2 * math.pi * (284 + day) / 365)
+
+def hour_angle(hour):
+    """Hour angle (radians)"""
+    return math.radians(15 * (hour - 12))
+
+def solar_altitude(latitude, declination, h_angle):
+    """Solar altitude angle (radians)"""
+    lat = math.radians(latitude)
+    return math.asin(math.sin(lat)*math.sin(declination) + math.cos(lat)*math.cos(declination)*math.cos(h_angle))
+
+def solar_azimuth(latitude, declination, h_angle, alt):
+    """Solar azimuth angle (radians)"""
+    lat = math.radians(latitude)
+    sin_az = -math.cos(declination) * math.sin(h_angle) / math.cos(alt)
+    cos_az = (math.sin(alt)*math.sin(lat) - math.sin(declination)) / (math.cos(alt)*math.cos(lat))
+    return math.atan2(sin_az, cos_az)
+
+def incident_angle(beta, gamma, lat, decl, h_angle):
+    """Angle between sun rays and panel normal"""
+    beta = math.radians(beta)
+    gamma = math.radians(gamma)
+    lat = math.radians(lat)
+    term = (math.sin(decl)*math.sin(lat)*math.cos(beta)
+            - math.sin(decl)*math.cos(lat)*math.sin(beta)*math.cos(gamma)
+            + math.cos(decl)*math.cos(lat)*math.cos(beta)*math.cos(h_angle)
+            + math.cos(decl)*math.sin(lat)*math.sin(beta)*math.cos(gamma)*math.cos(h_angle)
+            + math.cos(decl)*math.sin(beta)*math.sin(gamma)*math.sin(h_angle))
+    return math.acos(term)
+
+# -----------------------------
+# Power model
+# -----------------------------
+def solar_power(beta, gamma, latitude=30, day=172, hour=12):
+    """Approximate solar power received on tilted panel."""
+    I0 = 1367  # Solar constant (W/m²)
+    decl = solar_declination(day)
+    h = hour_angle(hour)
+    alt = solar_altitude(latitude, decl, h)
+    if alt <= 0:
+        return 0  # Sun below horizon
+    theta = incident_angle(beta, gamma, latitude, decl, h)
+    return I0 * math.cos(theta) * math.sin(alt)
+
+# -----------------------------
+# Particle Swarm Optimization
+# -----------------------------
+class Particle:
+    def __init__(self):
+        self.position = [random.uniform(0, 90), random.uniform(-180, 180)]  # [tilt, azimuth]
+        self.velocity = [random.uniform(-2, 2), random.uniform(-2, 2)]
+        self.best_position = list(self.position)
+        self.best_value = solar_power(*self.position)
+        
+def pso(max_iter=100, swarm_size=30, w=0.7, c1=1.5, c2=1.5):
+    particles = [Particle() for _ in range(swarm_size)]
+    global_best = max(particles, key=lambda p: p.best_value)
+    
+    for iteration in range(max_iter):
+        for p in particles:
+            # Evaluate current position
+            value = solar_power(*p.position)
+            if value > p.best_value:
+                p.best_value = value
+                p.best_position = list(p.position)
+            
+            if value > global_best.best_value:
+                global_best = p
+        
+        for p in particles:
+            for i in range(2):
+                r1, r2 = random.random(), random.random()
+                p.velocity[i] = (
+                    w * p.velocity[i]
+                    + c1 * r1 * (p.best_position[i] - p.position[i])
+                    + c2 * r2 * (global_best.best_position[i] - p.position[i])
+                )
+                p.position[i] += p.velocity[i]
+            
+            # Bound constraints
+            p.position[0] = np.clip(p.position[0], 0, 90)
+            p.position[1] = np.clip(p.position[1], -180, 180)
+        
+        if iteration % 10 == 0:
+            print(f"Iter {iteration}: Best Power = {global_best.best_value:.2f} W/m², Angles = {global_best.best_position}")
+
+    return global_best
+
+# -----------------------------
+# Run Optimization
+# -----------------------------
+best_particle = pso()
+print("\n=== Optimal Orientation ===")
+print(f"Tilt (β): {best_particle.best_position[0]:.2f}°")
+print(f"Azimuth (γ): {best_particle.best_position[1]:.2f}°")
+print(f"Max Solar Power: {best_particle.best_value:.2f} W/m²")
